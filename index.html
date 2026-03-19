@@ -151,6 +151,27 @@ input,textarea { -webkit-user-select:auto; user-select:auto; }
 .plan-bonus { font-size:14px; color:var(--red); font-weight:600; margin-top:4px; }
 .plan-total { font-size:13px; color:var(--text3); margin-top:4px; }
 
+/* Records */
+.record-section { margin:16px; }
+.record-title { font-size:16px; font-weight:700; color:var(--text); margin-bottom:10px; }
+.record-empty { text-align:center; padding:20px 0; color:var(--text3); font-size:14px; }
+.record-item {
+  display:flex; justify-content:space-between; align-items:center;
+  background:#FFF; padding:12px 14px; border-radius:10px; margin-bottom:8px;
+}
+.record-left { display:flex; align-items:center; gap:10px; }
+.record-type {
+  font-size:12px; font-weight:600; padding:3px 8px; border-radius:6px; color:#FFF;
+}
+.type-deposit { background:var(--green); }
+.type-consume { background:var(--orange); }
+.record-time { font-size:13px; color:var(--text3); }
+.record-right { text-align:right; }
+.record-amount { font-size:16px; font-weight:700; }
+.amt-deposit { color:var(--green); }
+.amt-consume { color:var(--orange); }
+.record-bonus { display:block; font-size:12px; color:var(--red); margin-top:2px; }
+
 /* Toast */
 .toast {
   position:fixed; top:50%; left:50%; transform:translate(-50%,-50%); background:rgba(0,0,0,.75);
@@ -182,8 +203,9 @@ input,textarea { -webkit-user-select:auto; user-select:auto; }
 <script>
 // ==================== Database (IndexedDB) ====================
 const DB_NAME = 'MemberManagerDB';
-const DB_VERSION = 1;
+const DB_VERSION = 2;
 const STORE = 'members';
+const RECORD_STORE = 'records';
 
 function openDB() {
   return new Promise((resolve, reject) => {
@@ -194,9 +216,63 @@ function openDB() {
         const store = db.createObjectStore(STORE, { keyPath: 'id', autoIncrement: true });
         store.createIndex('name', 'name', { unique: false });
       }
+      if (!db.objectStoreNames.contains(RECORD_STORE)) {
+        const rStore = db.createObjectStore(RECORD_STORE, { keyPath: 'id', autoIncrement: true });
+        rStore.createIndex('memberId', 'memberId', { unique: false });
+      }
     };
     req.onsuccess = () => resolve(req.result);
     req.onerror = () => reject(req.error);
+  });
+}
+
+// type: 'deposit' | 'consume'
+function addRecord(memberId, type, amount, bonus) {
+  return new Promise(async (resolve, reject) => {
+    const db = await openDB();
+    const tx = db.transaction(RECORD_STORE, 'readwrite');
+    const req = tx.objectStore(RECORD_STORE).add({
+      memberId, type, amount, bonus: bonus || 0, time: formatDate(new Date()),
+    });
+    req.onsuccess = () => resolve();
+    req.onerror = () => reject(req.error);
+  });
+}
+
+function getRecordsByMemberId(memberId) {
+  return new Promise(async (resolve, reject) => {
+    const db = await openDB();
+    const tx = db.transaction(RECORD_STORE, 'readonly');
+    const idx = tx.objectStore(RECORD_STORE).index('memberId');
+    const req = idx.getAll(memberId);
+    req.onsuccess = () => resolve(req.result.sort((a, b) => b.id - a.id));
+    req.onerror = () => reject(req.error);
+  });
+}
+
+function getAllRecords() {
+  return new Promise(async (resolve, reject) => {
+    const db = await openDB();
+    const tx = db.transaction(RECORD_STORE, 'readonly');
+    const req = tx.objectStore(RECORD_STORE).getAll();
+    req.onsuccess = () => resolve(req.result);
+    req.onerror = () => reject(req.error);
+  });
+}
+
+function deleteRecordsByMemberId(memberId) {
+  return new Promise(async (resolve, reject) => {
+    const db = await openDB();
+    const tx = db.transaction(RECORD_STORE, 'readwrite');
+    const store = tx.objectStore(RECORD_STORE);
+    const idx = store.index('memberId');
+    const req = idx.openCursor(memberId);
+    req.onsuccess = e => {
+      const cursor = e.target.result;
+      if (cursor) { cursor.delete(); cursor.continue(); }
+    };
+    tx.oncomplete = () => resolve();
+    tx.onerror = () => reject(tx.error);
   });
 }
 
@@ -431,6 +507,7 @@ function renderAdd(app) {
 async function renderDetail(app) {
   const member = await getMemberById(pageParams.id);
   if (!member) { navigate('list'); return; }
+  const records = await getRecordsByMemberId(member.id);
 
   app.innerHTML = `
     <div class="header">
@@ -471,6 +548,21 @@ async function renderDetail(app) {
         <button class="action-btn" style="background:var(--primary)" id="btn-edit">修改信息</button>
         <button class="action-btn" style="background:var(--red)" id="btn-delete">删除会员</button>
       </div>
+      <div class="record-section">
+        <div class="record-title">交易记录 (${records.length})</div>
+        ${records.length === 0 ? '<div class="record-empty">暂无交易记录</div>' : records.map(r => `
+          <div class="record-item">
+            <div class="record-left">
+              <span class="record-type ${r.type === 'deposit' ? 'type-deposit' : 'type-consume'}">${r.type === 'deposit' ? '储值' : '消费'}</span>
+              <span class="record-time">${r.time}</span>
+            </div>
+            <div class="record-right">
+              <span class="record-amount ${r.type === 'deposit' ? 'amt-deposit' : 'amt-consume'}">${r.type === 'deposit' ? '+' : '-'}¥${r.amount.toFixed(2)}</span>
+              ${r.bonus > 0 ? '<span class="record-bonus">赠 ¥' + r.bonus.toFixed(2) + '</span>' : ''}
+            </div>
+          </div>
+        `).join('')}
+      </div>
     </div>`;
 
   document.getElementById('back-btn').onclick = () => navigate('list');
@@ -479,6 +571,7 @@ async function renderDetail(app) {
   document.getElementById('btn-edit').onclick = () => navigate('edit', { id: member.id });
   document.getElementById('btn-delete').onclick = () => {
     showConfirm('确认删除', `确定要删除会员 "${escHtml(member.name)}" 吗？`, async () => {
+      await deleteRecordsByMemberId(member.id);
       await deleteMember(member.id);
       showToast('已删除');
       navigate('list');
@@ -587,6 +680,7 @@ async function renderDeposit(app) {
       totalDeposit: member.totalDeposit + selectedPlan.amount,
       balance: member.balance + total,
     });
+    await addRecord(member.id, 'deposit', selectedPlan.amount, selectedPlan.bonus);
     showToast(`储值 ¥${selectedPlan.amount}，赠送 ¥${selectedPlan.bonus}，实得 ¥${total}`);
     setTimeout(() => navigate('detail', { id: member.id }), 800);
   };
@@ -627,6 +721,7 @@ async function renderConsume(app) {
       return;
     }
     await updateMember(member.id, { balance: member.balance - val });
+    await addRecord(member.id, 'consume', val, 0);
     showToast(`已消费 ¥${val.toFixed(2)}`);
     setTimeout(() => navigate('detail', { id: member.id }), 500);
   };
@@ -659,7 +754,8 @@ async function renderDataManage(app) {
 
   document.getElementById('btn-export').onclick = async () => {
     const data = await getAllMembers();
-    const json = JSON.stringify({ version: 1, exportTime: formatDate(new Date()), members: data }, null, 2);
+    const records = await getAllRecords();
+    const json = JSON.stringify({ version: 2, exportTime: formatDate(new Date()), members: data, records: records }, null, 2);
     const blob = new Blob([json], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -701,12 +797,13 @@ async function renderDataManage(app) {
       document.getElementById('modal-overlay').onclick = ev => { if (ev.target === ev.currentTarget) modal.innerHTML = ''; };
       document.getElementById('modal-ok').onclick = async () => {
         modal.innerHTML = '';
-        // Clear existing data
         const db = await openDB();
-        const clearTx = db.transaction(STORE, 'readwrite');
+        // Clear members
+        const clearTx = db.transaction([STORE, RECORD_STORE], 'readwrite');
         clearTx.objectStore(STORE).clear();
+        clearTx.objectStore(RECORD_STORE).clear();
         await new Promise(r => { clearTx.oncomplete = r; });
-        // Import new data
+        // Import members
         const importTx = db.transaction(STORE, 'readwrite');
         const store = importTx.objectStore(STORE);
         for (const m of data.members) {
@@ -720,6 +817,21 @@ async function renderDataManage(app) {
           });
         }
         await new Promise(r => { importTx.oncomplete = r; });
+        // Import records if present
+        if (data.records && Array.isArray(data.records)) {
+          const recTx = db.transaction(RECORD_STORE, 'readwrite');
+          const recStore = recTx.objectStore(RECORD_STORE);
+          for (const r of data.records) {
+            recStore.add({
+              memberId: r.memberId,
+              type: r.type || 'consume',
+              amount: r.amount || 0,
+              bonus: r.bonus || 0,
+              time: r.time || formatDate(new Date()),
+            });
+          }
+          await new Promise(res => { recTx.oncomplete = res; });
+        }
         showToast(`已导入 ${data.members.length} 条数据`);
         setTimeout(() => navigate('list'), 500);
       };
