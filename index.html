@@ -421,8 +421,6 @@ function renderAdd(app) {
     const name = document.getElementById('f-name').value.trim();
     const phone = document.getElementById('f-phone').value.trim();
     if (!name) { showToast('请输入会员姓名'); return; }
-    if (!phone) { showToast('请输入手机号'); return; }
-    if (!/^1\d{10}$/.test(phone)) { showToast('请输入正确的11位手机号'); return; }
     await addMember({ name, phone, gender });
     showToast('会员添加成功');
     setTimeout(() => navigate('list'), 500);
@@ -525,8 +523,6 @@ async function renderEdit(app) {
     const name = document.getElementById('f-name').value.trim();
     const phone = document.getElementById('f-phone').value.trim();
     if (!name) { showToast('请输入会员姓名'); return; }
-    if (!phone) { showToast('请输入手机号'); return; }
-    if (!/^1\d{10}$/.test(phone)) { showToast('请输入正确的11位手机号'); return; }
     await updateMember(member.id, { name, phone, gender });
     showToast('修改成功');
     setTimeout(() => navigate('detail', { id: member.id }), 500);
