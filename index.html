@@ -1,0 +1,614 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="会员管理">
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="icon-192.png">
+<title>会员管理</title>
+<style>
+:root {
+  --primary: #4A90D9;
+  --green: #4CAF50;
+  --orange: #E8833A;
+  --red: #E85B5B;
+  --pink: #E88B9C;
+  --bg: #F5F5F5;
+  --card: #FFF;
+  --text: #333;
+  --text2: #666;
+  --text3: #999;
+  --border: #E5E5E5;
+  --safe-top: env(safe-area-inset-top, 0px);
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+}
+* { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+body { font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif; background:var(--bg); color:var(--text); -webkit-user-select:none; user-select:none; }
+input,textarea { -webkit-user-select:auto; user-select:auto; }
+
+/* Header */
+.header {
+  background:var(--primary); color:#FFF; padding:12px 16px; padding-top:calc(var(--safe-top) + 12px);
+  display:flex; align-items:center; justify-content:space-between; position:sticky; top:0; z-index:100;
+}
+.header h1 { font-size:18px; font-weight:700; }
+.header-btn { background:rgba(255,255,255,.2); border:none; color:#FFF; padding:6px 14px; border-radius:8px; font-size:14px; font-weight:600; cursor:pointer; }
+.back-btn { background:none; border:none; color:#FFF; font-size:16px; cursor:pointer; display:flex; align-items:center; gap:4px; }
+.header-left { display:flex; align-items:center; gap:8px; }
+
+/* Search */
+.search-bar { display:flex; padding:12px; background:#FFF; border-bottom:1px solid var(--border); gap:8px; }
+.search-bar input { flex:1; height:40px; border:1px solid var(--border); border-radius:8px; padding:0 12px; font-size:15px; background:#F9F9F9; outline:none; }
+.search-bar input:focus { border-color:var(--primary); }
+.search-bar button { background:var(--primary); color:#FFF; border:none; padding:0 16px; border-radius:8px; font-size:15px; font-weight:600; cursor:pointer; }
+
+/* Count */
+.count-text { padding:8px 16px; color:var(--text3); font-size:13px; }
+
+/* Member Card */
+.member-list { padding:0 12px 100px; }
+.member-card {
+  background:var(--card); border-radius:12px; padding:16px; margin-bottom:10px;
+  box-shadow:0 1px 4px rgba(0,0,0,.06); cursor:pointer; transition:transform .15s;
+}
+.member-card:active { transform:scale(.98); }
+.card-header { display:flex; align-items:center; margin-bottom:6px; }
+.card-name { font-size:18px; font-weight:700; }
+.gender-badge { margin-left:8px; padding:2px 8px; border-radius:10px; color:#FFF; font-size:12px; font-weight:600; }
+.card-phone { font-size:14px; color:var(--text2); margin-bottom:12px; }
+.card-footer { display:flex; justify-content:space-between; border-top:1px solid #EEE; padding-top:12px; }
+.stat-item { text-align:center; }
+.stat-label { font-size:12px; color:var(--text3); margin-bottom:4px; }
+.stat-value { font-size:15px; font-weight:600; }
+.stat-balance { color:var(--orange); }
+.stat-date { font-size:12px; color:var(--text2); }
+
+/* FAB */
+.fab {
+  position:fixed; right:20px; bottom:calc(30px + var(--safe-bottom)); width:56px; height:56px; border-radius:28px;
+  background:var(--primary); color:#FFF; border:none; font-size:28px; line-height:56px; text-align:center;
+  box-shadow:0 4px 12px rgba(74,144,217,.35); cursor:pointer; z-index:50; transition:transform .15s;
+}
+.fab:active { transform:scale(.9); }
+
+/* Empty */
+.empty { text-align:center; padding:60px 0; color:var(--text3); font-size:16px; }
+
+/* Page (non-list) */
+.page { padding-bottom:calc(40px + var(--safe-bottom)); }
+
+/* Form */
+.form { padding:20px; }
+.form-label { font-size:15px; font-weight:600; color:var(--text); margin-bottom:8px; margin-top:16px; }
+.form-label:first-child { margin-top:0; }
+.form-input {
+  width:100%; border:1px solid var(--border); border-radius:10px; padding:12px 14px;
+  font-size:16px; outline:none; background:#FFF;
+}
+.form-input:focus { border-color:var(--primary); }
+.gender-row { display:flex; gap:12px; }
+.gender-btn {
+  flex:1; padding:12px; border-radius:10px; border:1px solid var(--border); background:#FFF;
+  text-align:center; font-size:16px; color:var(--text2); cursor:pointer; transition:all .15s;
+}
+.gender-btn.active-male { background:var(--primary); border-color:var(--primary); color:#FFF; font-weight:600; }
+.gender-btn.active-female { background:var(--pink); border-color:var(--pink); color:#FFF; font-weight:600; }
+.submit-btn {
+  width:100%; padding:14px; border:none; border-radius:10px; font-size:17px; font-weight:700;
+  color:#FFF; cursor:pointer; margin-top:32px; transition:opacity .15s;
+}
+.submit-btn:active { opacity:.8; }
+.submit-btn.primary { background:var(--primary); }
+.submit-btn.green { background:var(--green); }
+.submit-btn.orange { background:var(--orange); }
+
+/* Detail */
+.detail-header { padding:20px; background:#FFF; display:flex; align-items:center; gap:10px; }
+.detail-name { font-size:24px; font-weight:700; }
+.info-card { background:#FFF; margin:16px; border-radius:12px; padding:0 16px; }
+.info-row { display:flex; justify-content:space-between; align-items:center; padding:14px 0; border-bottom:1px solid #EEE; }
+.info-row:last-child { border-bottom:none; }
+.info-label { font-size:15px; color:var(--text3); }
+.info-value { font-size:15px; font-weight:600; }
+.info-balance { color:var(--orange); font-size:18px; }
+
+/* Action buttons */
+.actions { display:flex; padding:0 16px; gap:12px; margin-top:12px; }
+.action-btn {
+  flex:1; padding:14px; border:none; border-radius:10px; color:#FFF; font-size:16px;
+  font-weight:700; text-align:center; cursor:pointer; transition:opacity .15s;
+}
+.action-btn:active { opacity:.8; }
+
+/* Amount page */
+.amount-header { padding:20px; text-align:center; color:#FFF; }
+.amount-header h2 { font-size:20px; font-weight:700; }
+.amount-header p { font-size:15px; opacity:.85; margin-top:6px; }
+.amount-input {
+  width:100%; border:1px solid var(--border); border-radius:10px; padding:12px;
+  font-size:22px; font-weight:700; text-align:center; outline:none; background:#FFF;
+}
+.amount-input:focus { border-color:var(--primary); }
+.quick-amounts { display:flex; flex-wrap:wrap; gap:10px; margin-top:16px; }
+.quick-btn {
+  width:calc(33.33% - 7px); padding:12px; background:#FFF; border:1px solid var(--border);
+  border-radius:8px; text-align:center; font-size:16px; font-weight:600; cursor:pointer;
+}
+.quick-btn:active { background:#F0F0F0; }
+
+/* Toast */
+.toast {
+  position:fixed; top:50%; left:50%; transform:translate(-50%,-50%); background:rgba(0,0,0,.75);
+  color:#FFF; padding:12px 24px; border-radius:10px; font-size:15px; z-index:999;
+  opacity:0; transition:opacity .3s; pointer-events:none;
+}
+.toast.show { opacity:1; }
+
+/* Confirm modal */
+.modal-overlay {
+  position:fixed; inset:0; background:rgba(0,0,0,.4); z-index:200; display:flex;
+  align-items:center; justify-content:center; padding:20px;
+}
+.modal-box { background:#FFF; border-radius:14px; width:100%; max-width:300px; overflow:hidden; }
+.modal-title { font-size:17px; font-weight:700; text-align:center; padding:20px 16px 8px; }
+.modal-msg { font-size:14px; color:var(--text2); text-align:center; padding:0 16px 20px; }
+.modal-actions { display:flex; border-top:1px solid #EEE; }
+.modal-btn { flex:1; padding:14px; border:none; background:none; font-size:16px; cursor:pointer; }
+.modal-btn:first-child { border-right:1px solid #EEE; color:var(--primary); }
+.modal-btn.danger { color:var(--red); font-weight:600; }
+</style>
+</head>
+<body>
+
+<div id="app"></div>
+<div id="toast" class="toast"></div>
+<div id="modal"></div>
+
+<script>
+// ==================== Database (IndexedDB) ====================
+const DB_NAME = 'MemberManagerDB';
+const DB_VERSION = 1;
+const STORE = 'members';
+
+function openDB() {
+  return new Promise((resolve, reject) => {
+    const req = indexedDB.open(DB_NAME, DB_VERSION);
+    req.onupgradeneeded = e => {
+      const db = e.target.result;
+      if (!db.objectStoreNames.contains(STORE)) {
+        const store = db.createObjectStore(STORE, { keyPath: 'id', autoIncrement: true });
+        store.createIndex('name', 'name', { unique: false });
+      }
+    };
+    req.onsuccess = () => resolve(req.result);
+    req.onerror = () => reject(req.error);
+  });
+}
+
+async function dbAction(mode, fn) {
+  const db = await openDB();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(STORE, mode);
+    const store = tx.objectStore(STORE);
+    const result = fn(store);
+    tx.oncomplete = () => resolve(result._result);
+    tx.onerror = () => reject(tx.error);
+    if (result.then) result.then(v => { result._result = v; });
+  });
+}
+
+function addMember(data) {
+  const member = { ...data, totalDeposit: 0, balance: 0, createdAt: formatDate(new Date()) };
+  return new Promise(async (resolve, reject) => {
+    const db = await openDB();
+    const tx = db.transaction(STORE, 'readwrite');
+    const req = tx.objectStore(STORE).add(member);
+    req.onsuccess = () => resolve(req.result);
+    req.onerror = () => reject(req.error);
+  });
+}
+
+function getAllMembers() {
+  return new Promise(async (resolve, reject) => {
+    const db = await openDB();
+    const tx = db.transaction(STORE, 'readonly');
+    const req = tx.objectStore(STORE).getAll();
+    req.onsuccess = () => {
+      const list = req.result.sort((a, b) => b.id - a.id);
+      resolve(list);
+    };
+    req.onerror = () => reject(req.error);
+  });
+}
+
+function getMemberById(id) {
+  return new Promise(async (resolve, reject) => {
+    const db = await openDB();
+    const tx = db.transaction(STORE, 'readonly');
+    const req = tx.objectStore(STORE).get(id);
+    req.onsuccess = () => resolve(req.result);
+    req.onerror = () => reject(req.error);
+  });
+}
+
+function updateMember(id, data) {
+  return new Promise(async (resolve, reject) => {
+    const db = await openDB();
+    const tx = db.transaction(STORE, 'readwrite');
+    const store = tx.objectStore(STORE);
+    const getReq = store.get(id);
+    getReq.onsuccess = () => {
+      const member = { ...getReq.result, ...data };
+      const putReq = store.put(member);
+      putReq.onsuccess = () => resolve();
+      putReq.onerror = () => reject(putReq.error);
+    };
+  });
+}
+
+function deleteMember(id) {
+  return new Promise(async (resolve, reject) => {
+    const db = await openDB();
+    const tx = db.transaction(STORE, 'readwrite');
+    const req = tx.objectStore(STORE).delete(id);
+    req.onsuccess = () => resolve();
+    req.onerror = () => reject(req.error);
+  });
+}
+
+// ==================== Utils ====================
+function formatDate(d) {
+  const pad = n => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
+function showToast(msg, duration = 1500) {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.classList.add('show');
+  setTimeout(() => el.classList.remove('show'), duration);
+}
+
+function showConfirm(title, msg, onOk) {
+  const modal = document.getElementById('modal');
+  modal.innerHTML = `
+    <div class="modal-overlay" id="modal-overlay">
+      <div class="modal-box">
+        <div class="modal-title">${title}</div>
+        <div class="modal-msg">${msg}</div>
+        <div class="modal-actions">
+          <button class="modal-btn" id="modal-cancel">取消</button>
+          <button class="modal-btn danger" id="modal-ok">删除</button>
+        </div>
+      </div>
+    </div>`;
+  document.getElementById('modal-cancel').onclick = () => { modal.innerHTML = ''; };
+  document.getElementById('modal-overlay').onclick = e => { if (e.target === e.currentTarget) modal.innerHTML = ''; };
+  document.getElementById('modal-ok').onclick = () => { modal.innerHTML = ''; onOk(); };
+}
+
+function escHtml(s) { const d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
+
+// ==================== Router ====================
+let currentPage = 'list';
+let pageParams = {};
+
+function navigate(page, params = {}) {
+  currentPage = page;
+  pageParams = params;
+  render();
+  window.scrollTo(0, 0);
+}
+
+function render() {
+  const app = document.getElementById('app');
+  switch (currentPage) {
+    case 'list': renderList(app); break;
+    case 'add': renderAdd(app); break;
+    case 'detail': renderDetail(app); break;
+    case 'edit': renderEdit(app); break;
+    case 'deposit': renderDeposit(app); break;
+    case 'consume': renderConsume(app); break;
+  }
+}
+
+// ==================== Pages ====================
+
+// --- Member List ---
+let searchText = '';
+
+async function renderList(app) {
+  let members = await getAllMembers();
+  if (searchText.trim()) {
+    const kw = searchText.trim().toLowerCase();
+    members = members.filter(m => m.name.toLowerCase().includes(kw));
+  }
+
+  app.innerHTML = `
+    <div class="header">
+      <h1>会员管理</h1>
+    </div>
+    <div class="search-bar">
+      <input type="text" id="search-input" placeholder="输入姓名搜索..." value="${escHtml(searchText)}">
+      <button id="search-btn">搜索</button>
+    </div>
+    <div class="count-text">共 ${members.length} 位会员</div>
+    <div class="member-list">
+      ${members.length === 0 ? '<div class="empty">暂无会员数据</div>' : members.map(m => `
+        <div class="member-card" data-id="${m.id}">
+          <div class="card-header">
+            <span class="card-name">${escHtml(m.name)}</span>
+            <span class="gender-badge" style="background:${m.gender === '男' ? 'var(--primary)' : 'var(--pink)'}">${m.gender}</span>
+          </div>
+          <div class="card-phone">${escHtml(m.phone)}</div>
+          <div class="card-footer">
+            <div class="stat-item">
+              <div class="stat-label">累计储值</div>
+              <div class="stat-value">¥${m.totalDeposit.toFixed(2)}</div>
+            </div>
+            <div class="stat-item">
+              <div class="stat-label">卡内余额</div>
+              <div class="stat-value stat-balance">¥${m.balance.toFixed(2)}</div>
+            </div>
+            <div class="stat-item">
+              <div class="stat-label">注册时间</div>
+              <div class="stat-date">${m.createdAt}</div>
+            </div>
+          </div>
+        </div>
+      `).join('')}
+    </div>
+    <button class="fab" id="fab-add">+</button>`;
+
+  document.getElementById('search-input').addEventListener('input', e => { searchText = e.target.value; });
+  document.getElementById('search-input').addEventListener('keydown', e => { if (e.key === 'Enter') renderList(app); });
+  document.getElementById('search-btn').addEventListener('click', () => renderList(app));
+  document.getElementById('fab-add').addEventListener('click', () => navigate('add'));
+  document.querySelectorAll('.member-card').forEach(card => {
+    card.addEventListener('click', () => navigate('detail', { id: Number(card.dataset.id) }));
+  });
+}
+
+// --- Add Member ---
+function renderAdd(app) {
+  let gender = '男';
+  app.innerHTML = `
+    <div class="header">
+      <div class="header-left">
+        <button class="back-btn" id="back-btn">< 返回</button>
+      </div>
+      <h1>添加会员</h1>
+      <div style="width:60px"></div>
+    </div>
+    <div class="page"><div class="form">
+      <div class="form-label">姓名</div>
+      <input class="form-input" id="f-name" placeholder="请输入会员姓名" maxlength="20">
+      <div class="form-label">手机号</div>
+      <input class="form-input" id="f-phone" placeholder="请输入手机号" type="tel" maxlength="11" inputmode="tel">
+      <div class="form-label">性别</div>
+      <div class="gender-row">
+        <div class="gender-btn active-male" id="g-male">男</div>
+        <div class="gender-btn" id="g-female">女</div>
+      </div>
+      <button class="submit-btn primary" id="submit-btn">添加会员</button>
+    </div></div>`;
+
+  document.getElementById('back-btn').onclick = () => navigate('list');
+  const maleBtn = document.getElementById('g-male');
+  const femaleBtn = document.getElementById('g-female');
+  maleBtn.onclick = () => { gender = '男'; maleBtn.className = 'gender-btn active-male'; femaleBtn.className = 'gender-btn'; };
+  femaleBtn.onclick = () => { gender = '女'; femaleBtn.className = 'gender-btn active-female'; maleBtn.className = 'gender-btn'; };
+
+  document.getElementById('submit-btn').onclick = async () => {
+    const name = document.getElementById('f-name').value.trim();
+    const phone = document.getElementById('f-phone').value.trim();
+    if (!name) { showToast('请输入会员姓名'); return; }
+    if (!phone) { showToast('请输入手机号'); return; }
+    if (!/^1\d{10}$/.test(phone)) { showToast('请输入正确的11位手机号'); return; }
+    await addMember({ name, phone, gender });
+    showToast('会员添加成功');
+    setTimeout(() => navigate('list'), 500);
+  };
+}
+
+// --- Member Detail ---
+async function renderDetail(app) {
+  const member = await getMemberById(pageParams.id);
+  if (!member) { navigate('list'); return; }
+
+  app.innerHTML = `
+    <div class="header">
+      <div class="header-left">
+        <button class="back-btn" id="back-btn">< 返回</button>
+      </div>
+      <h1>会员详情</h1>
+      <div style="width:60px"></div>
+    </div>
+    <div class="page">
+      <div class="detail-header">
+        <span class="detail-name">${escHtml(member.name)}</span>
+        <span class="gender-badge" style="background:${member.gender === '男' ? 'var(--primary)' : 'var(--pink)'}">${member.gender}</span>
+      </div>
+      <div class="info-card">
+        <div class="info-row">
+          <span class="info-label">手机号</span>
+          <span class="info-value">${escHtml(member.phone)}</span>
+        </div>
+        <div class="info-row">
+          <span class="info-label">累计储值</span>
+          <span class="info-value">¥${member.totalDeposit.toFixed(2)}</span>
+        </div>
+        <div class="info-row">
+          <span class="info-label">卡内余额</span>
+          <span class="info-value info-balance">¥${member.balance.toFixed(2)}</span>
+        </div>
+        <div class="info-row">
+          <span class="info-label">注册时间</span>
+          <span class="info-value">${member.createdAt}</span>
+        </div>
+      </div>
+      <div class="actions">
+        <button class="action-btn" style="background:var(--green)" id="btn-deposit">储值</button>
+        <button class="action-btn" style="background:var(--orange)" id="btn-consume">消费</button>
+      </div>
+      <div class="actions">
+        <button class="action-btn" style="background:var(--primary)" id="btn-edit">修改信息</button>
+        <button class="action-btn" style="background:var(--red)" id="btn-delete">删除会员</button>
+      </div>
+    </div>`;
+
+  document.getElementById('back-btn').onclick = () => navigate('list');
+  document.getElementById('btn-deposit').onclick = () => navigate('deposit', { id: member.id });
+  document.getElementById('btn-consume').onclick = () => navigate('consume', { id: member.id });
+  document.getElementById('btn-edit').onclick = () => navigate('edit', { id: member.id });
+  document.getElementById('btn-delete').onclick = () => {
+    showConfirm('确认删除', `确定要删除会员 "${escHtml(member.name)}" 吗？`, async () => {
+      await deleteMember(member.id);
+      showToast('已删除');
+      navigate('list');
+    });
+  };
+}
+
+// --- Edit Member ---
+async function renderEdit(app) {
+  const member = await getMemberById(pageParams.id);
+  if (!member) { navigate('list'); return; }
+  let gender = member.gender;
+
+  app.innerHTML = `
+    <div class="header">
+      <div class="header-left">
+        <button class="back-btn" id="back-btn">< 返回</button>
+      </div>
+      <h1>修改信息</h1>
+      <div style="width:60px"></div>
+    </div>
+    <div class="page"><div class="form">
+      <div class="form-label">姓名</div>
+      <input class="form-input" id="f-name" value="${escHtml(member.name)}" maxlength="20">
+      <div class="form-label">手机号</div>
+      <input class="form-input" id="f-phone" value="${escHtml(member.phone)}" type="tel" maxlength="11" inputmode="tel">
+      <div class="form-label">性别</div>
+      <div class="gender-row">
+        <div class="gender-btn ${gender === '男' ? 'active-male' : ''}" id="g-male">男</div>
+        <div class="gender-btn ${gender === '女' ? 'active-female' : ''}" id="g-female">女</div>
+      </div>
+      <button class="submit-btn primary" id="submit-btn">保存修改</button>
+    </div></div>`;
+
+  document.getElementById('back-btn').onclick = () => navigate('detail', { id: member.id });
+  const maleBtn = document.getElementById('g-male');
+  const femaleBtn = document.getElementById('g-female');
+  maleBtn.onclick = () => { gender = '男'; maleBtn.className = 'gender-btn active-male'; femaleBtn.className = 'gender-btn'; };
+  femaleBtn.onclick = () => { gender = '女'; femaleBtn.className = 'gender-btn active-female'; maleBtn.className = 'gender-btn'; };
+
+  document.getElementById('submit-btn').onclick = async () => {
+    const name = document.getElementById('f-name').value.trim();
+    const phone = document.getElementById('f-phone').value.trim();
+    if (!name) { showToast('请输入会员姓名'); return; }
+    if (!phone) { showToast('请输入手机号'); return; }
+    if (!/^1\d{10}$/.test(phone)) { showToast('请输入正确的11位手机号'); return; }
+    await updateMember(member.id, { name, phone, gender });
+    showToast('修改成功');
+    setTimeout(() => navigate('detail', { id: member.id }), 500);
+  };
+}
+
+// --- Deposit ---
+async function renderDeposit(app) {
+  const member = await getMemberById(pageParams.id);
+  if (!member) { navigate('list'); return; }
+  const quickAmounts = [100, 200, 500, 1000, 2000, 5000];
+
+  app.innerHTML = `
+    <div class="header">
+      <div class="header-left">
+        <button class="back-btn" id="back-btn">< 返回</button>
+      </div>
+      <h1>会员储值</h1>
+      <div style="width:60px"></div>
+    </div>
+    <div class="page">
+      <div class="amount-header" style="background:var(--green)">
+        <h2>${escHtml(member.name)}</h2>
+        <p>当前余额: ¥${member.balance.toFixed(2)}</p>
+      </div>
+      <div class="form">
+        <div class="form-label">储值金额</div>
+        <input class="amount-input" id="f-amount" placeholder="请输入储值金额" type="number" inputmode="decimal" step="0.01" min="0">
+        <div class="quick-amounts">
+          ${quickAmounts.map(v => `<div class="quick-btn" data-val="${v}" style="color:var(--green)">¥${v}</div>`).join('')}
+        </div>
+        <button class="submit-btn green" id="submit-btn">确认储值</button>
+      </div>
+    </div>`;
+
+  document.getElementById('back-btn').onclick = () => navigate('detail', { id: member.id });
+  document.querySelectorAll('.quick-btn').forEach(btn => {
+    btn.onclick = () => { document.getElementById('f-amount').value = btn.dataset.val; };
+  });
+
+  document.getElementById('submit-btn').onclick = async () => {
+    const val = parseFloat(document.getElementById('f-amount').value);
+    if (!val || val <= 0) { showToast('请输入正确的储值金额'); return; }
+    await updateMember(member.id, {
+      totalDeposit: member.totalDeposit + val,
+      balance: member.balance + val,
+    });
+    showToast(`已储值 ¥${val.toFixed(2)}`);
+    setTimeout(() => navigate('detail', { id: member.id }), 500);
+  };
+}
+
+// --- Consume ---
+async function renderConsume(app) {
+  const member = await getMemberById(pageParams.id);
+  if (!member) { navigate('list'); return; }
+
+  app.innerHTML = `
+    <div class="header">
+      <div class="header-left">
+        <button class="back-btn" id="back-btn">< 返回</button>
+      </div>
+      <h1>会员消费</h1>
+      <div style="width:60px"></div>
+    </div>
+    <div class="page">
+      <div class="amount-header" style="background:var(--orange)">
+        <h2>${escHtml(member.name)}</h2>
+        <p>当前余额: ¥${member.balance.toFixed(2)}</p>
+      </div>
+      <div class="form">
+        <div class="form-label">消费金额</div>
+        <input class="amount-input" id="f-amount" placeholder="请输入消费金额" type="number" inputmode="decimal" step="0.01" min="0">
+        <button class="submit-btn orange" id="submit-btn">确认消费</button>
+      </div>
+    </div>`;
+
+  document.getElementById('back-btn').onclick = () => navigate('detail', { id: member.id });
+
+  document.getElementById('submit-btn').onclick = async () => {
+    const val = parseFloat(document.getElementById('f-amount').value);
+    if (!val || val <= 0) { showToast('请输入正确的消费金额'); return; }
+    if (val > member.balance) {
+      showToast(`余额不足，当前余额 ¥${member.balance.toFixed(2)}`);
+      return;
+    }
+    await updateMember(member.id, { balance: member.balance - val });
+    showToast(`已消费 ¥${val.toFixed(2)}`);
+    setTimeout(() => navigate('detail', { id: member.id }), 500);
+  };
+}
+
+// ==================== Init ====================
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.register('./sw.js');
+}
+render();
+</script>
+</body>
+</html>
