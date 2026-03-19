@@ -139,6 +139,18 @@ input,textarea { -webkit-user-select:auto; user-select:auto; }
 }
 .quick-btn:active { background:#F0F0F0; }
 
+/* Deposit plans */
+.deposit-plans { display:flex; flex-wrap:wrap; gap:12px; }
+.deposit-plan-btn {
+  width:calc(50% - 6px); padding:16px 12px; background:#FFF; border:2px solid var(--border);
+  border-radius:12px; text-align:center; cursor:pointer; transition:all .15s;
+}
+.deposit-plan-btn:active { transform:scale(.97); }
+.deposit-plan-btn.plan-selected { border-color:var(--green); background:#F0FFF0; }
+.plan-amount { font-size:18px; font-weight:700; color:var(--text); }
+.plan-bonus { font-size:14px; color:var(--red); font-weight:600; margin-top:4px; }
+.plan-total { font-size:13px; color:var(--text3); margin-top:4px; }
+
 /* Toast */
 .toast {
   position:fixed; top:50%; left:50%; transform:translate(-50%,-50%); background:rgba(0,0,0,.75);
@@ -525,7 +537,14 @@ async function renderEdit(app) {
 async function renderDeposit(app) {
   const member = await getMemberById(pageParams.id);
   if (!member) { navigate('list'); return; }
-  const quickAmounts = [100, 200, 500, 1000, 2000, 5000];
+  // 储值档位: { 储值金额: 赠送金额 }
+  const depositPlans = [
+    { amount: 500, bonus: 66 },
+    { amount: 1000, bonus: 150 },
+    { amount: 3000, bonus: 500 },
+    { amount: 5000, bonus: 1000 },
+  ];
+  let selectedPlan = null;
 
   app.innerHTML = `
     <div class="header">
@@ -541,29 +560,39 @@ async function renderDeposit(app) {
         <p>当前余额: ¥${member.balance.toFixed(2)}</p>
       </div>
       <div class="form">
-        <div class="form-label">储值金额</div>
-        <input class="amount-input" id="f-amount" placeholder="请输入储值金额" type="number" inputmode="decimal" step="0.01" min="0">
-        <div class="quick-amounts">
-          ${quickAmounts.map(v => `<div class="quick-btn" data-val="${v}" style="color:var(--green)">¥${v}</div>`).join('')}
+        <div class="form-label">选择储值档位</div>
+        <div class="deposit-plans">
+          ${depositPlans.map((p, i) => `
+            <div class="deposit-plan-btn" data-idx="${i}">
+              <div class="plan-amount">充 ¥${p.amount}</div>
+              <div class="plan-bonus">送 ¥${p.bonus}</div>
+              <div class="plan-total">实得 ¥${p.amount + p.bonus}</div>
+            </div>
+          `).join('')}
         </div>
         <button class="submit-btn green" id="submit-btn">确认储值</button>
       </div>
     </div>`;
 
   document.getElementById('back-btn').onclick = () => navigate('detail', { id: member.id });
-  document.querySelectorAll('.quick-btn').forEach(btn => {
-    btn.onclick = () => { document.getElementById('f-amount').value = btn.dataset.val; };
+
+  document.querySelectorAll('.deposit-plan-btn').forEach(btn => {
+    btn.onclick = () => {
+      document.querySelectorAll('.deposit-plan-btn').forEach(b => b.classList.remove('plan-selected'));
+      btn.classList.add('plan-selected');
+      selectedPlan = depositPlans[Number(btn.dataset.idx)];
+    };
   });
 
   document.getElementById('submit-btn').onclick = async () => {
-    const val = parseFloat(document.getElementById('f-amount').value);
-    if (!val || val <= 0) { showToast('请输入正确的储值金额'); return; }
+    if (!selectedPlan) { showToast('请选择储值档位'); return; }
+    const total = selectedPlan.amount + selectedPlan.bonus;
     await updateMember(member.id, {
-      totalDeposit: member.totalDeposit + val,
-      balance: member.balance + val,
+      totalDeposit: member.totalDeposit + selectedPlan.amount,
+      balance: member.balance + total,
     });
-    showToast(`已储值 ¥${val.toFixed(2)}`);
-    setTimeout(() => navigate('detail', { id: member.id }), 500);
+    showToast(`储值 ¥${selectedPlan.amount}，赠送 ¥${selectedPlan.bonus}，实得 ¥${total}`);
+    setTimeout(() => navigate('detail', { id: member.id }), 800);
   };
 }
 

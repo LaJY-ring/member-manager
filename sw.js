@@ -1,4 +1,4 @@
-const CACHE_NAME = 'member-mgr-v2';
+const CACHE_NAME = 'member-mgr-v3';
 const ASSETS = ['./index.html', './manifest.json'];
 
 self.addEventListener('install', e => {
