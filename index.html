@@ -165,6 +165,7 @@ input,textarea { -webkit-user-select:auto; user-select:auto; }
 }
 .type-deposit { background:var(--green); }
 .type-consume { background:var(--orange); }
+.type-migrate { background:var(--primary); }
 .record-time { font-size:13px; color:var(--text3); }
 .record-right { text-align:right; }
 .record-amount { font-size:16px; font-weight:700; }
@@ -553,11 +554,11 @@ async function renderDetail(app) {
         ${records.length === 0 ? '<div class="record-empty">暂无交易记录</div>' : records.map(r => `
           <div class="record-item">
             <div class="record-left">
-              <span class="record-type ${r.type === 'deposit' ? 'type-deposit' : 'type-consume'}">${r.type === 'deposit' ? '储值' : '消费'}</span>
+              <span class="record-type ${r.type === 'deposit' ? 'type-deposit' : r.type === 'migrate' ? 'type-migrate' : 'type-consume'}">${r.type === 'deposit' ? '储值' : r.type === 'migrate' ? '迁移' : '消费'}</span>
               <span class="record-time">${r.time}</span>
             </div>
             <div class="record-right">
-              <span class="record-amount ${r.type === 'deposit' ? 'amt-deposit' : 'amt-consume'}">${r.type === 'deposit' ? '+' : '-'}¥${r.amount.toFixed(2)}</span>
+              <span class="record-amount ${r.type === 'consume' ? 'amt-consume' : 'amt-deposit'}">${r.type === 'consume' ? '-' : '+'}¥${r.amount.toFixed(2)}</span>
               ${r.bonus > 0 ? '<span class="record-bonus">赠 ¥' + r.bonus.toFixed(2) + '</span>' : ''}
             </div>
           </div>
@@ -660,6 +661,12 @@ async function renderDeposit(app) {
           `).join('')}
         </div>
         <button class="submit-btn green" id="submit-btn">确认储值</button>
+        <div style="border-top:1px solid var(--border);margin-top:24px;padding-top:20px;">
+          <div class="form-label" style="margin-top:0;">余额迁移</div>
+          <div style="font-size:13px;color:var(--text3);margin-bottom:10px;">用于录入老用户的历史余额</div>
+          <input class="amount-input" id="f-migrate" placeholder="请输入迁移金额" type="number" inputmode="decimal" step="0.01" min="0">
+          <button class="submit-btn primary" id="migrate-btn" style="margin-top:16px;">确认迁移</button>
+        </div>
       </div>
     </div>`;
 
@@ -683,6 +690,15 @@ async function renderDeposit(app) {
     await addRecord(member.id, 'deposit', selectedPlan.amount, selectedPlan.bonus);
     showToast(`储值 ¥${selectedPlan.amount}，赠送 ¥${selectedPlan.bonus}，实得 ¥${total}`);
     setTimeout(() => navigate('detail', { id: member.id }), 800);
+  };
+
+  document.getElementById('migrate-btn').onclick = async () => {
+    const val = parseFloat(document.getElementById('f-migrate').value);
+    if (!val || val <= 0) { showToast('请输入正确的迁移金额'); return; }
+    await updateMember(member.id, { balance: member.balance + val });
+    await addRecord(member.id, 'migrate', val, 0);
+    showToast(`已迁移余额 ¥${val.toFixed(2)}`);
+    setTimeout(() => navigate('detail', { id: member.id }), 500);
   };
 }
 
