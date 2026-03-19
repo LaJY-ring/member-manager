@@ -312,6 +312,7 @@ function render() {
     case 'edit': renderEdit(app); break;
     case 'deposit': renderDeposit(app); break;
     case 'consume': renderConsume(app); break;
+    case 'dataManage': renderDataManage(app); break;
   }
 }
 
@@ -324,15 +325,16 @@ async function renderList(app) {
   let members = await getAllMembers();
   if (searchText.trim()) {
     const kw = searchText.trim().toLowerCase();
-    members = members.filter(m => m.name.toLowerCase().includes(kw));
+    members = members.filter(m => m.name.toLowerCase().includes(kw) || m.phone.includes(kw));
   }
 
   app.innerHTML = `
     <div class="header">
       <h1>会员管理</h1>
+      <button class="header-btn" id="btn-data">数据管理</button>
     </div>
     <div class="search-bar">
-      <input type="text" id="search-input" placeholder="输入姓名搜索..." value="${escHtml(searchText)}">
+      <input type="text" id="search-input" placeholder="输入姓名/手机号搜索..." value="${escHtml(searchText)}">
       <button id="search-btn">搜索</button>
     </div>
     <div class="count-text">共 ${members.length} 位会员</div>
@@ -366,6 +368,7 @@ async function renderList(app) {
   document.getElementById('search-input').addEventListener('input', e => { searchText = e.target.value; });
   document.getElementById('search-input').addEventListener('keydown', e => { if (e.key === 'Enter') renderList(app); });
   document.getElementById('search-btn').addEventListener('click', () => renderList(app));
+  document.getElementById('btn-data').addEventListener('click', () => navigate('dataManage'));
   document.getElementById('fab-add').addEventListener('click', () => navigate('add'));
   document.querySelectorAll('.member-card').forEach(card => {
     card.addEventListener('click', () => navigate('detail', { id: Number(card.dataset.id) }));
@@ -601,6 +604,103 @@ async function renderConsume(app) {
     await updateMember(member.id, { balance: member.balance - val });
     showToast(`已消费 ¥${val.toFixed(2)}`);
     setTimeout(() => navigate('detail', { id: member.id }), 500);
+  };
+}
+
+// --- Data Management (Export/Import) ---
+async function renderDataManage(app) {
+  const members = await getAllMembers();
+  app.innerHTML = `
+    <div class="header">
+      <div class="header-left">
+        <button class="back-btn" id="back-btn">< 返回</button>
+      </div>
+      <h1>数据管理</h1>
+      <div style="width:60px"></div>
+    </div>
+    <div class="page"><div class="form">
+      <div class="info-card" style="margin:0 0 16px; padding:16px; border-radius:12px; background:#FFF;">
+        <div style="font-size:15px;color:var(--text3);margin-bottom:4px;">当前会员数量</div>
+        <div style="font-size:24px;font-weight:700;color:var(--text);">${members.length} 人</div>
+      </div>
+      <button class="submit-btn green" id="btn-export" style="margin-top:0;">导出数据</button>
+      <div style="font-size:13px;color:var(--text3);margin-top:8px;text-align:center;">导出所有会员数据为 JSON 文件，可保存到"文件"App</div>
+      <button class="submit-btn primary" id="btn-import" style="margin-top:24px;">导入数据</button>
+      <div style="font-size:13px;color:var(--text3);margin-top:8px;text-align:center;">从之前导出的 JSON 文件恢复数据</div>
+      <input type="file" id="file-input" accept=".json" style="display:none;">
+    </div></div>`;
+
+  document.getElementById('back-btn').onclick = () => navigate('list');
+
+  document.getElementById('btn-export').onclick = async () => {
+    const data = await getAllMembers();
+    const json = JSON.stringify({ version: 1, exportTime: formatDate(new Date()), members: data }, null, 2);
+    const blob = new Blob([json], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = '会员数据_' + formatDate(new Date()).replace(/[: ]/g, '_') + '.json';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    showToast('数据已导出');
+  };
+
+  document.getElementById('btn-import').onclick = () => {
+    document.getElementById('file-input').click();
+  };
+
+  document.getElementById('file-input').onchange = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    try {
+      const text = await file.text();
+      const data = JSON.parse(text);
+      if (!data.members || !Array.isArray(data.members)) {
+        showToast('文件格式不正确'); return;
+      }
+      const modal = document.getElementById('modal');
+      modal.innerHTML = `
+        <div class="modal-overlay" id="modal-overlay">
+          <div class="modal-box">
+            <div class="modal-title">确认导入</div>
+            <div class="modal-msg">将导入 ${data.members.length} 条会员数据。<br>现有数据将被完全替换！</div>
+            <div class="modal-actions">
+              <button class="modal-btn" id="modal-cancel">取消</button>
+              <button class="modal-btn danger" id="modal-ok" style="color:var(--primary);font-weight:600;">确认导入</button>
+            </div>
+          </div>
+        </div>`;
+      document.getElementById('modal-cancel').onclick = () => { modal.innerHTML = ''; };
+      document.getElementById('modal-overlay').onclick = ev => { if (ev.target === ev.currentTarget) modal.innerHTML = ''; };
+      document.getElementById('modal-ok').onclick = async () => {
+        modal.innerHTML = '';
+        // Clear existing data
+        const db = await openDB();
+        const clearTx = db.transaction(STORE, 'readwrite');
+        clearTx.objectStore(STORE).clear();
+        await new Promise(r => { clearTx.oncomplete = r; });
+        // Import new data
+        const importTx = db.transaction(STORE, 'readwrite');
+        const store = importTx.objectStore(STORE);
+        for (const m of data.members) {
+          store.add({
+            name: m.name || '',
+            phone: m.phone || '',
+            gender: m.gender || '男',
+            totalDeposit: m.totalDeposit || 0,
+            balance: m.balance || 0,
+            createdAt: m.createdAt || formatDate(new Date()),
+          });
+        }
+        await new Promise(r => { importTx.oncomplete = r; });
+        showToast(`已导入 ${data.members.length} 条数据`);
+        setTimeout(() => navigate('list'), 500);
+      };
+    } catch (err) {
+      showToast('文件解析失败，请检查文件格式');
+    }
   };
 }
 
