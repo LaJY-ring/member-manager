@@ -202,28 +202,150 @@ input,textarea { -webkit-user-select:auto; user-select:auto; }
 <div id="modal"></div>
 
 <script>
-// ==================== API Client ====================
-const API = 'https://member-manager-api.liuw-515.workers.dev';
+// ==================== Database (IndexedDB) ====================
+const DB_NAME = 'MemberManagerDB';
+const DB_VERSION = 2;
+const STORE = 'members';
+const RECORD_STORE = 'records';
 
-async function api(path, opts = {}) {
-  const res = await fetch(API + path, {
-    ...opts,
-    headers: { 'Content-Type': 'application/json', ...opts.headers },
-    body: opts.body ? JSON.stringify(opts.body) : undefined,
+function openDB() {
+  return new Promise((resolve, reject) => {
+    const req = indexedDB.open(DB_NAME, DB_VERSION);
+    req.onupgradeneeded = e => {
+      const db = e.target.result;
+      if (!db.objectStoreNames.contains(STORE)) {
+        const store = db.createObjectStore(STORE, { keyPath: 'id', autoIncrement: true });
+        store.createIndex('name', 'name', { unique: false });
+      }
+      if (!db.objectStoreNames.contains(RECORD_STORE)) {
+        const rStore = db.createObjectStore(RECORD_STORE, { keyPath: 'id', autoIncrement: true });
+        rStore.createIndex('memberId', 'memberId', { unique: false });
+      }
+    };
+    req.onsuccess = () => resolve(req.result);
+    req.onerror = () => reject(req.error);
   });
-  return res.json();
 }
 
-async function getAllMembers(q) {
-  return api('/api/members' + (q ? '?q=' + encodeURIComponent(q) : ''));
+// type: 'deposit' | 'consume'
+function addRecord(memberId, type, amount, bonus) {
+  return new Promise(async (resolve, reject) => {
+    const db = await openDB();
+    const tx = db.transaction(RECORD_STORE, 'readwrite');
+    const req = tx.objectStore(RECORD_STORE).add({
+      memberId, type, amount, bonus: bonus || 0, time: formatDate(new Date()),
+    });
+    req.onsuccess = () => resolve();
+    req.onerror = () => reject(req.error);
+  });
 }
-async function getMemberById(id) { return api('/api/members/' + id); }
-async function addMember(data) { return api('/api/members', { method: 'POST', body: data }); }
-async function updateMember(id, data) { return api('/api/members/' + id, { method: 'PUT', body: data }); }
-async function deleteMember(id) { return api('/api/members/' + id, { method: 'DELETE' }); }
-async function getRecordsByMemberId(id) { return api('/api/records/' + id); }
-async function addRecord(memberId, type, amount, bonus) {
-  return api('/api/records', { method: 'POST', body: { memberId, type, amount, bonus: bonus || 0 } });
+
+function getRecordsByMemberId(memberId) {
+  return new Promise(async (resolve, reject) => {
+    const db = await openDB();
+    const tx = db.transaction(RECORD_STORE, 'readonly');
+    const idx = tx.objectStore(RECORD_STORE).index('memberId');
+    const req = idx.getAll(memberId);
+    req.onsuccess = () => resolve(req.result.sort((a, b) => b.id - a.id));
+    req.onerror = () => reject(req.error);
+  });
+}
+
+function getAllRecords() {
+  return new Promise(async (resolve, reject) => {
+    const db = await openDB();
+    const tx = db.transaction(RECORD_STORE, 'readonly');
+    const req = tx.objectStore(RECORD_STORE).getAll();
+    req.onsuccess = () => resolve(req.result);
+    req.onerror = () => reject(req.error);
+  });
+}
+
+function deleteRecordsByMemberId(memberId) {
+  return new Promise(async (resolve, reject) => {
+    const db = await openDB();
+    const tx = db.transaction(RECORD_STORE, 'readwrite');
+    const store = tx.objectStore(RECORD_STORE);
+    const idx = store.index('memberId');
+    const req = idx.openCursor(memberId);
+    req.onsuccess = e => {
+      const cursor = e.target.result;
+      if (cursor) { cursor.delete(); cursor.continue(); }
+    };
+    tx.oncomplete = () => resolve();
+    tx.onerror = () => reject(tx.error);
+  });
+}
+
+async function dbAction(mode, fn) {
+  const db = await openDB();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(STORE, mode);
+    const store = tx.objectStore(STORE);
+    const result = fn(store);
+    tx.oncomplete = () => resolve(result._result);
+    tx.onerror = () => reject(tx.error);
+    if (result.then) result.then(v => { result._result = v; });
+  });
+}
+
+function addMember(data) {
+  const member = { ...data, totalDeposit: 0, balance: 0, createdAt: formatDate(new Date()) };
+  return new Promise(async (resolve, reject) => {
+    const db = await openDB();
+    const tx = db.transaction(STORE, 'readwrite');
+    const req = tx.objectStore(STORE).add(member);
+    req.onsuccess = () => resolve(req.result);
+    req.onerror = () => reject(req.error);
+  });
+}
+
+function getAllMembers() {
+  return new Promise(async (resolve, reject) => {
+    const db = await openDB();
+    const tx = db.transaction(STORE, 'readonly');
+    const req = tx.objectStore(STORE).getAll();
+    req.onsuccess = () => {
+      const list = req.result.sort((a, b) => b.id - a.id);
+      resolve(list);
+    };
+    req.onerror = () => reject(req.error);
+  });
+}
+
+function getMemberById(id) {
+  return new Promise(async (resolve, reject) => {
+    const db = await openDB();
+    const tx = db.transaction(STORE, 'readonly');
+    const req = tx.objectStore(STORE).get(id);
+    req.onsuccess = () => resolve(req.result);
+    req.onerror = () => reject(req.error);
+  });
+}
+
+function updateMember(id, data) {
+  return new Promise(async (resolve, reject) => {
+    const db = await openDB();
+    const tx = db.transaction(STORE, 'readwrite');
+    const store = tx.objectStore(STORE);
+    const getReq = store.get(id);
+    getReq.onsuccess = () => {
+      const member = { ...getReq.result, ...data };
+      const putReq = store.put(member);
+      putReq.onsuccess = () => resolve();
+      putReq.onerror = () => reject(putReq.error);
+    };
+  });
+}
+
+function deleteMember(id) {
+  return new Promise(async (resolve, reject) => {
+    const db = await openDB();
+    const tx = db.transaction(STORE, 'readwrite');
+    const req = tx.objectStore(STORE).delete(id);
+    req.onsuccess = () => resolve();
+    req.onerror = () => reject(req.error);
+  });
 }
 
 // ==================== Utils ====================
@@ -289,7 +411,11 @@ function render() {
 let searchText = '';
 
 async function renderList(app) {
-  let members = await getAllMembers(searchText.trim());
+  let members = await getAllMembers();
+  if (searchText.trim()) {
+    const kw = searchText.trim().toLowerCase();
+    members = members.filter(m => m.name.toLowerCase().includes(kw) || m.phone.includes(kw));
+  }
 
   app.innerHTML = `
     <div class="header">
@@ -446,6 +572,7 @@ async function renderDetail(app) {
   document.getElementById('btn-edit').onclick = () => navigate('edit', { id: member.id });
   document.getElementById('btn-delete').onclick = () => {
     showConfirm('确认删除', `确定要删除会员 "${escHtml(member.name)}" 吗？`, async () => {
+      await deleteRecordsByMemberId(member.id);
       await deleteMember(member.id);
       showToast('已删除');
       navigate('list');
@@ -642,8 +769,9 @@ async function renderDataManage(app) {
   document.getElementById('back-btn').onclick = () => navigate('list');
 
   document.getElementById('btn-export').onclick = async () => {
-    const exportData = await api('/api/export');
-    const json = JSON.stringify(exportData, null, 2);
+    const data = await getAllMembers();
+    const records = await getAllRecords();
+    const json = JSON.stringify({ version: 2, exportTime: formatDate(new Date()), members: data, records: records }, null, 2);
     const blob = new Blob([json], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -685,7 +813,41 @@ async function renderDataManage(app) {
       document.getElementById('modal-overlay').onclick = ev => { if (ev.target === ev.currentTarget) modal.innerHTML = ''; };
       document.getElementById('modal-ok').onclick = async () => {
         modal.innerHTML = '';
-        await api('/api/import', { method: 'POST', body: data });
+        const db = await openDB();
+        // Clear members
+        const clearTx = db.transaction([STORE, RECORD_STORE], 'readwrite');
+        clearTx.objectStore(STORE).clear();
+        clearTx.objectStore(RECORD_STORE).clear();
+        await new Promise(r => { clearTx.oncomplete = r; });
+        // Import members
+        const importTx = db.transaction(STORE, 'readwrite');
+        const store = importTx.objectStore(STORE);
+        for (const m of data.members) {
+          store.add({
+            name: m.name || '',
+            phone: m.phone || '',
+            gender: m.gender || '男',
+            totalDeposit: m.totalDeposit || 0,
+            balance: m.balance || 0,
+            createdAt: m.createdAt || formatDate(new Date()),
+          });
+        }
+        await new Promise(r => { importTx.oncomplete = r; });
+        // Import records if present
+        if (data.records && Array.isArray(data.records)) {
+          const recTx = db.transaction(RECORD_STORE, 'readwrite');
+          const recStore = recTx.objectStore(RECORD_STORE);
+          for (const r of data.records) {
+            recStore.add({
+              memberId: r.memberId,
+              type: r.type || 'consume',
+              amount: r.amount || 0,
+              bonus: r.bonus || 0,
+              time: r.time || formatDate(new Date()),
+            });
+          }
+          await new Promise(res => { recTx.oncomplete = res; });
+        }
         showToast(`已导入 ${data.members.length} 条数据`);
         setTimeout(() => navigate('list'), 500);
       };

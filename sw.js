@@ -1,4 +1,4 @@
-const CACHE_NAME = 'member-mgr-v7';
+const CACHE_NAME = 'member-mgr-v6';
 const ASSETS = ['./index.html', './manifest.json'];
 
 self.addEventListener('install', e => {
@@ -16,10 +16,6 @@ self.addEventListener('activate', e => {
 });
 
 self.addEventListener('fetch', e => {
-  // Don't cache API requests
-  if (e.request.url.includes('/api/')) {
-    return;
-  }
   e.respondWith(
     caches.match(e.request).then(r => r || fetch(e.request))
   );
